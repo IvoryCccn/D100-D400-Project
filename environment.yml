@@ -1,0 +1,46 @@
+name: credit-card-approval
+channels:
+  - conda-forge
+dependencies:
+  # --------------------
+  # Core Python
+  # --------------------
+  - python=3.10
+
+  # --------------------
+  # Data handling
+  # --------------------
+  - numpy
+  - pandas
+
+  # --------------------
+  # Machine learning
+  # --------------------
+  - scikit-learn
+  - lightgbm
+
+  # --------------------
+  # Visualization
+  # --------------------
+  - matplotlib
+  - seaborn
+  - missingno
+
+  # --------------------
+  # Jupyter
+  # --------------------
+  - notebook
+  - ipykernel
+
+  # --------------------
+  # Testing & tooling
+  # --------------------
+  - pytest
+
+  # --------------------
+  # Pip (for editable install & extra tools)
+  # --------------------
+  - pip
+  - pip:
+      - joblib
+      - pre-commit
