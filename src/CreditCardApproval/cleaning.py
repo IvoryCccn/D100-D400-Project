@@ -1,5 +1,6 @@
 import pandas as pd
 
+
 APPLICATION_RENAME_MAP = {
     "AMT_INCOME_TOTAL": "annual_income",
     "CNT_CHILDREN": "children_number",
@@ -49,7 +50,11 @@ def handle_application_missing(
     return df
 
 
-def clip_outliers_application(df: pd.DataFrame) -> pd.DataFrame:
+def clip_outliers_application(
+    df: pd.DataFrame,
+    lower_quantile: float = 0.01,
+    upper_quantile: float = 0.99,
+) -> pd.DataFrame:
     """
     Clip outliers of numerical variables in application data
     based on EDA findings.
@@ -61,25 +66,25 @@ def clip_outliers_application(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
 
-    # 1. Annual income: strong right skew
+    # 1) Annual income: strong right skew (two-sided)
     if "annual_income" in df.columns:
-        lower, upper = df["annual_income"].quantile([0.01, 0.99])
-        df["annual_income"] = df["annual_income"].clip(lower, upper)
+        lo, hi = df["annual_income"].quantile([lower_quantile, upper_quantile])
+        df["annual_income"] = df["annual_income"].clip(lo, hi)
 
-    # 2. Employed years: long right tail
+    # 2) Employed years: long right tail (upper only)
     if "employed_years" in df.columns:
-        upper = df["employed_years"].quantile(0.99)
-        df["employed_years"] = df["employed_years"].clip(upper=upper)
+        hi = df["employed_years"].quantile(upper_quantile)
+        df["employed_years"] = df["employed_years"].clip(upper=hi)
 
-    # 3. Children number
+    # 3) Children number: upper only
     if "children_number" in df.columns:
-        upper = df["children_number"].quantile(0.99)
-        df["children_number"] = df["children_number"].clip(upper=upper)
+        hi = df["children_number"].quantile(upper_quantile)
+        df["children_number"] = df["children_number"].clip(upper=hi)
 
-    # 4. Family size
+    # 4) Family size: upper only
     if "family_size" in df.columns:
-        upper = df["family_size"].quantile(0.99)
-        df["family_size"] = df["family_size"].clip(upper=upper)
+        hi = df["family_size"].quantile(upper_quantile)
+        df["family_size"] = df["family_size"].clip(upper=hi)
 
     return df
 
@@ -95,7 +100,7 @@ def recode_categorical_variables(df: pd.DataFrame) -> pd.DataFrame:
         "Working": "Employed",
         "Commercial associate": "Employed",
         "State servant": "Employed",
-        "Businessman": "Self_Employed",
+        "Businessman": "Self-Employed",
         "Pensioner": "Retired",
         "Student": "Other",
         "Unemployed": "Other",
@@ -133,39 +138,5 @@ def recode_categorical_variables(df: pd.DataFrame) -> pd.DataFrame:
         "With parents": "With_Parents",
     }
     df["housing_status"] = df["housing_type"].map(housing_mapping)
-
-    return df
-
-
-def merge_application_with_target(
-    application_df: pd.DataFrame,
-    target_df: pd.DataFrame,
-    id_col: str = "ID",
-) -> pd.DataFrame:
-    """
-    Merge cleaned application data with credit target.
-    Only applicants with credit history are retained.
-    """
-    merged = application_df.merge(
-        target_df[[id_col, "target"]],
-        on=id_col,
-        how="inner",
-    )
-
-    return merged
-
-
-def select_final_variables(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Select final variables set for modeling.
-    Drops original high-cardinality categorical columns.
-    """
-    df = df.copy()
-    
-    drop_cols = ["income_type", "education_type", "family_status", "housing_type"]
-    existing = [c for c in drop_cols if c in df.columns]
-    df = df.drop(columns=existing)
-
-    df = df.rename(columns={"family_status_recoded": "family_status", "income_type_recoded": "income_type"})
 
     return df

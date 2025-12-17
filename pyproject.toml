@@ -2,31 +2,32 @@
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
-
 [project]
-name = "credit-card-approval-project"
+name = "credit-card-approval"
 version = "0.1.0"
 description = "Credit card approval prediction using GLM and LightGBM"
 readme = "README.md"
-requires-python = ">=3.9"
-
-authors = [
-    { name = "6142P", email = "nc681@cam.ac.uk" }
-]
-
+requires-python = ">=3.10"
 dependencies = [
-    "numpy",
-    "pandas",
-    "scikit-learn",
-    "lightgbm",
-    "matplotlib",
-    "seaborn",
-    "joblib",
+  "numpy",
+  "pandas",
+  "matplotlib",
+  "seaborn",
+  "missingno",
+  "scikit-learn",
+  "lightgbm",
+  "pyarrow",
 ]
 
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "pytest-cov",
+  "pre-commit",
+  "notebook",
+  "ipykernel",
+]
 
-[tool.setuptools]
-package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

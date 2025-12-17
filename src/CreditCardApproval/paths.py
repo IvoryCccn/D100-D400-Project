@@ -6,9 +6,7 @@ from pathlib import Path
 def get_project_root() -> Path:
     """
     Return the project root directory.
-
-    Assumes this file lives in:
-        <project_root>/src/CreditCardApproval/paths.py
+    Assumes this file lives in: <project_root>/src/CreditCardApproval/paths.py
     """
     return Path(__file__).resolve().parents[2]
 

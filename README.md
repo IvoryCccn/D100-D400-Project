@@ -55,3 +55,7 @@ LightGBM（LGBM）：作为一种基于梯度提升树的非线性模型，能�
 在不平衡分类问题下，对比不同建模方法的表现；
 
 提供一个可复现、结构化、工程化的数据科学建模流程示例，涵盖数据处理、建模、调参与模型解释。
+
+
+pytest -v
+pytest tests/test_my_transformer.py -v
