@@ -56,6 +56,16 @@ def test_validate_schema_raises_when_missing_columns():
         validate_schema(df, FINAL_SCHEMA)
 
 
+def test_validate_schema_raises_when_missing_id_or_target():
+    df = _toy_processed_df()
+
+    with pytest.raises(ValueError):
+        validate_schema(df.drop(columns=[ID_COL]), FINAL_SCHEMA)
+
+    with pytest.raises(ValueError):
+        validate_schema(df.drop(columns=[TARGET_COL]), FINAL_SCHEMA)
+
+
 def test_make_X_y_splits_and_drops_id():
     df = _toy_processed_df()
     X, y = make_X_y(df)
@@ -79,9 +89,21 @@ def test_glm_pipeline_can_fit_and_predict_proba():
     assert np.all((proba >= 0) & (proba <= 1))
 
 
-def test_lgbm_pipeline_can_fit_and_predict_proba_if_installed():
-    pytest.importorskip("lightgbm")  # 如果没装 lightgbm，这个测试会自动跳过
+def test_glm_pipeline_adds_log_income_feature_when_enabled():
+    df = _toy_processed_df(n=40, seed=3)
+    X, y = make_X_y(df)
 
+    pipe = make_glm_pipeline(schema=FINAL_SCHEMA, log_income=True, income_col="annual_income")
+    pipe.fit(X, y)
+
+    assert "log_income" in pipe.named_steps
+    Xt = pipe.named_steps["log_income"].transform(X.copy())
+    assert "annual_income_log1p" in Xt.columns
+
+
+def test_lgbm_pipeline_can_fit_and_predict_proba():
+    pytest.importorskip("lightgbm")
+    
     df = _toy_processed_df(n=80, seed=2)
     X, y = make_X_y(df)
 
@@ -91,3 +113,17 @@ def test_lgbm_pipeline_can_fit_and_predict_proba_if_installed():
     proba = pipe.predict_proba(X)[:, 1]
     assert proba.shape == (len(X),)
     assert np.all((proba >= 0) & (proba <= 1))
+    
+
+def test_lgbm_pipeline_adds_log_income_feature_when_enabled():
+    pytest.importorskip("lightgbm")
+    
+    df = _toy_processed_df(n=40, seed=4)
+    X, y = make_X_y(df)
+
+    pipe = make_lgbm_pipeline(schema=FINAL_SCHEMA, log_income=True, income_col="annual_income")
+    pipe.fit(X, y)
+
+    assert "log_income" in pipe.named_steps
+    Xt = pipe.named_steps["log_income"].transform(X.copy())
+    assert "annual_income_log1p" in Xt.columns

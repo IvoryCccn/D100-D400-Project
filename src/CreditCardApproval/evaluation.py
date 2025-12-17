@@ -17,6 +17,8 @@ from sklearn.metrics import (
     confusion_matrix,
 )
 
+from CreditCardApproval.paths import get_models_dir
+
 
 # ======================================================
 # 1. Evaluation Factor Calculating
@@ -136,8 +138,6 @@ def find_optimal_threshold(
     metric: Literal["f2", "f1", "recall", "precision", "accuracy", "youden", "profit"] = "f2",
     thresholds: Optional[np.ndarray] = None,
     beta: float = 2.0,
-    
-    # profit params (only used when metric="profit")
     tp_gain: float = 0.0,
     tn_gain: float = 0.0,
     fp_cost: float = 1.0,
@@ -154,17 +154,14 @@ def find_optimal_threshold(
 
     rows = []
 
-    # For Youden's J we can compute via roc_curve (more efficient & standard)
     if metric == "youden":
         fpr, tpr, thr = roc_curve(y_true, y_proba)
-        # roc_curve returns thresholds in descending order incl. inf, we skip inf
         valid = np.isfinite(thr)
         fpr, tpr, thr = fpr[valid], tpr[valid], thr[valid]
         j = tpr - fpr
         best_idx = int(np.argmax(j))
         best_threshold = float(thr[best_idx])
 
-        # build a small table around all thresholds from roc_curve
         for _t, _fpr, _tpr, _j in zip(thr, fpr, tpr, j):
             y_pred = (y_proba >= _t).astype(int)
             rows.append(
@@ -186,7 +183,6 @@ def find_optimal_threshold(
         df = pd.DataFrame(rows).sort_values("youden", ascending=False).reset_index(drop=True)
         return best_threshold, df
 
-    # Generic grid search on thresholds
     for t in thresholds:
         y_pred = (y_proba >= t).astype(int)
 
@@ -241,7 +237,179 @@ def find_optimal_threshold(
 
 
 # ======================================================
-# 3. Compare Model
+# 3. Visualization
+# ======================================================
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+import math
+
+# Plot ROC Curve
+def plot_roc_curves_grid(
+    models: dict,
+    X,
+    y,
+    title: str = "ROC Curves (Validation)",
+    save_name: str | None = None,
+    ncols: int = 4,
+):
+    names = list(models.keys())
+    n = len(names)
+    nrows = math.ceil(n / ncols)
+
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4.5*ncols, 3.2*nrows))
+    axes = np.array(axes).reshape(-1)
+
+    for i, name in enumerate(names):
+        ax = axes[i]
+        model = models[name]
+        y_score = model.predict_proba(X)[:, 1]
+        fpr, tpr, _ = roc_curve(y, y_score)
+        auc = roc_auc_score(y, y_score)
+
+        ax.plot(fpr, tpr, linewidth=2)
+        ax.plot([0, 1], [0, 1], linestyle="--", linewidth=1)
+
+        ax.set_title(f"{name}\nAUC={auc:.3f}", fontsize=10)
+        ax.set_xlabel("FPR")
+        ax.set_ylabel("TPR")
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.grid(alpha=0.2)
+
+    for j in range(i + 1, len(axes)):
+        fig.delaxes(axes[j])
+
+    fig.suptitle(title, fontsize=14)
+    fig.tight_layout(rect=[0, 0, 1, 0.97])
+    
+    if save_name:
+        save_path = get_models_dir() / save_name
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+
+    plt.show()
+
+
+# Plot Confusion Matrix
+def plot_confusion_matrices_grid(
+    models: dict,
+    X,
+    y,
+    thresholds: dict,
+    title: str = "Confusion Matrices @ Optimal Threshold (Validation)",
+    save_name: str | None = None,
+    ncols: int = 4,
+):
+    names = list(models.keys())
+    n = len(names)
+    nrows = math.ceil(n / ncols)
+
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4.5*ncols, 3.5*nrows))
+    axes = np.array(axes).reshape(-1)
+
+    for i, name in enumerate(names):
+        ax = axes[i]
+        model = models[name]
+        t = float(thresholds[name])
+
+        y_score = model.predict_proba(X)[:, 1]
+        y_pred = (y_score >= t).astype(int)
+
+        cm = confusion_matrix(y, y_pred, labels=[0, 1])
+        cm_df = pd.DataFrame(
+            cm,
+            index=["Actual: Good (0)", "Actual: Bad (1)"],
+            columns=["Pred: Good (0)", "Pred: Bad (1)"],
+        )
+
+        sns.heatmap(cm_df, annot=True, fmt="d", cmap="Blues", cbar=False, ax=ax)
+        ax.set_title(f"{name}\nthr={t:.2f}", fontsize=10)
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+
+    for j in range(i + 1, len(axes)):
+        fig.delaxes(axes[j])
+
+    fig.suptitle(title, fontsize=14)
+    fig.tight_layout(rect=[0, 0, 1, 0.97])
+    
+    if save_name:
+        save_path = get_models_dir() / save_name
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+
+    plt.show()
+
+
+# Plot Threshold Curves
+def plot_threshold_curves_grid(
+    models: dict,
+    X,
+    y,
+    optimal_thresholds: dict | None = None,
+    beta: float = 2.0,
+    thresholds: np.ndarray | None = None,
+    title: str = "Threshold Curves (Validation)",
+    save_name: str | None = None,
+    ncols: int = 4,
+):
+    names = list(models.keys())
+    n = len(names)
+    nrows = math.ceil(n / ncols)
+
+    if thresholds is None:
+        thresholds = np.arange(0.01, 1.00, 0.01)
+
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4.5*ncols, 3.2*nrows))
+    axes = np.array(axes).reshape(-1)
+
+    for i, name in enumerate(names):
+        ax = axes[i]
+        model = models[name]
+        y_proba = model.predict_proba(X)[:, 1]
+
+        precision, recall, f1, f2 = [], [], [], []
+        for t in thresholds:
+            y_pred = (y_proba >= t).astype(int)
+            precision.append(precision_score(y, y_pred, zero_division=0))
+            recall.append(recall_score(y, y_pred, zero_division=0))
+            f1.append(f1_score(y, y_pred, zero_division=0))
+            f2.append(fbeta_score(y, y_pred, beta=beta, zero_division=0))
+
+        ax.plot(thresholds, precision, label="Precision", linewidth=1)
+        ax.plot(thresholds, recall, label="Recall", linewidth=1)
+        ax.plot(thresholds, f1, label="F1", linewidth=1)
+        ax.plot(thresholds, f2, label=f"F{int(beta)}", linewidth=2)
+
+        # notify optimal threshold
+        if optimal_thresholds is not None and name in optimal_thresholds:
+            t_star = float(optimal_thresholds[name])
+            ax.axvline(t_star, linestyle="--", linewidth=1)
+            ax.set_title(f"{name}\nthr={t_star:.2f}", fontsize=10)
+        else:
+            ax.set_title(name, fontsize=10)
+
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.grid(alpha=0.2)
+
+        if i == 0:
+            ax.legend(fontsize=8)
+
+    for j in range(i + 1, len(axes)):
+        fig.delaxes(axes[j])
+
+    fig.suptitle(title, fontsize=14)
+    fig.tight_layout(rect=[0, 0, 1, 0.97])
+    
+    if save_name:
+        save_path = get_models_dir() / save_name
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+
+    plt.show()
+
+
+# ======================================================
+# 4. Compare Model
 # ======================================================
 
 def evaluate_model(
@@ -295,120 +463,32 @@ def compare_models(
     return df[order]
 
 
-# ======================================================
-# 4. Visualization
-# ======================================================
-
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-# Plot ROC Curve
-def plot_roc_curves(
-    models: dict,
+def evaluate_models_table(
+    models: Mapping[str, Any],
     X: pd.DataFrame,
     y: pd.Series,
-    title: str = "ROC Curve Comparison",
-):
+    thresholds: Union[float, Mapping[str, float]] = 0.5,
+    sort_by: str | None = "auc",
+    ascending: bool = False,
+) -> pd.DataFrame:
     """
-    Plot ROC curves for multiple fitted models.
+    Evaluate multiple fitted models and return a summary table.
     """
-    plt.figure(figsize=(7, 5))
+    df = compare_models(models=models, X=X, y=y, threshold=thresholds).reset_index()
+    df = df.rename(columns={"model": "model_name"})
 
-    for name, model in models.items():
-        y_score = model.predict_proba(X)[:, 1]
-        fpr, tpr, _ = roc_curve(y, y_score)
-        auc = roc_auc_score(y, y_score)
-        plt.plot(fpr, tpr, label=f"{name} (AUC={auc:.3f})")
+    if sort_by is not None and sort_by in df.columns:
+        df = df.sort_values(sort_by, ascending=ascending).reset_index(drop=True)
 
-    plt.plot([0, 1], [0, 1], linestyle="--", color="gray")
-    plt.xlabel("False Positive Rate")
-    plt.ylabel("True Positive Rate")
-    plt.title(title)
-    plt.legend()
-    plt.grid(alpha=0.3)
-    plt.show()
-    
-
-# Plot Confusion Matrix
-def plot_confusion_matrix(
-    model,
-    X: pd.DataFrame,
-    y: pd.Series,
-    threshold: float = 0.5,
-    title: str | None = None,
-):
-    """
-    Plot confusion matrix at a given threshold.
-    """
-    y_score = model.predict_proba(X)[:, 1]
-    y_pred = (y_score >= threshold).astype(int)
-
-    cm = confusion_matrix(y, y_pred, labels=[0, 1])
-    cm_df = pd.DataFrame(
-        cm,
-        index=["Actual: Good (0)", "Actual: Bad (1)"],
-        columns=["Pred: Good (0)", "Pred: Bad (1)"],
-    )
-
-    plt.figure(figsize=(5, 4))
-    sns.heatmap(cm_df, annot=True, fmt="d", cmap="Blues")
-    plt.title(title if title else f"Confusion Matrix (threshold={threshold})")
-    plt.ylabel("Actual")
-    plt.xlabel("Predicted")
-    plt.tight_layout()
-    plt.show()
-
-
-# Plot Threshold Curves
-def plot_threshold_curves(
-    y_true,
-    y_proba,
-    beta: float = 2.0,
-    thresholds: np.ndarray | None = None,
-    title: str = "Threshold vs Metrics",
-):
-    """
-    Plot metric curves as functions of decision threshold.
-    """
-    if thresholds is None:
-        thresholds = np.arange(0.01, 1.00, 0.01)
-
-    precision, recall, f1, f2 = [], [], [], []
-
-    for t in thresholds:
-        y_pred = (y_proba >= t).astype(int)
-
-        precision.append(precision_score(y_true, y_pred, zero_division=0))
-        recall.append(recall_score(y_true, y_pred, zero_division=0))
-        f1.append(f1_score(y_true, y_pred, zero_division=0))
-        f2.append(fbeta_score(y_true, y_pred, beta=beta, zero_division=0))
-
-    plt.figure(figsize=(8, 5))
-    plt.plot(thresholds, precision, label="Precision")
-    plt.plot(thresholds, recall, label="Recall")
-    plt.plot(thresholds, f1, label="F1")
-    plt.plot(thresholds, f2, label="F2", linewidth=2)
-
-    plt.xlabel("Threshold")
-    plt.ylabel("Score")
-    plt.title(title)
-    plt.legend()
-    plt.grid(True)
-    plt.tight_layout()
-    plt.show()
+    return df
 
 
 # Plot Predicted vs Actual
 def _get_positive_proba(model, X: pd.DataFrame) -> np.ndarray:
-    """
-    Return predicted probability of positive class (y==1).
-    Works for sklearn Pipelines / estimators with predict_proba.
-    """
     proba = model.predict_proba(X)
     if proba.ndim != 2 or proba.shape[1] < 2:
-        raise ValueError("predict_proba output shape is unexpected. Need proba for binary classification.")
+        raise ValueError("predict_proba output shape is unexpected for binary classification.")
     return proba[:, 1]
-
 
 def plot_predicted_vs_actual(
     models: Dict[str, object],
@@ -417,10 +497,11 @@ def plot_predicted_vs_actual(
     n_bins: int = 10,
     strategy: str = "quantile",
     title: str = "Predicted vs Actual (Calibration by Bins)",
-    save_path: Optional[str] = None,
+    save_name: str | None = None,
 ) -> pd.DataFrame:
     """
-    Plot predicted vs actual default rate by probability bins (calibration-style plot).
+    Calibration-style plot: average predicted proba vs actual positive rate across bins.
+    Returns a long-form table with bin stats for all models.
     """
     y_true = pd.Series(y).astype(int).reset_index(drop=True)
 
@@ -430,9 +511,7 @@ def plot_predicted_vs_actual(
     rows = []
 
     for name, model in models.items():
-        y_proba = _get_positive_proba(model, X)
-        y_proba = pd.Series(y_proba, name="proba").reset_index(drop=True)
-
+        y_proba = pd.Series(_get_positive_proba(model, X), name="proba").reset_index(drop=True)
         df = pd.concat([y_true.rename("y"), y_proba], axis=1)
 
         if strategy == "quantile":
@@ -442,32 +521,38 @@ def plot_predicted_vs_actual(
         else:
             raise ValueError("strategy must be 'quantile' or 'uniform'.")
 
-        g = (df.groupby("bin", observed=True).agg(
-                n=("y", "size"),
-                actual_rate=("y", "mean"),
-                avg_pred=("proba", "mean"),
-                min_pred=("proba", "min"),
-                max_pred=("proba", "max"),
-            )
-            .reset_index()
+        g = (
+            df.groupby("bin", observed=True)
+              .agg(
+                  n=("y", "size"),
+                  actual_rate=("y", "mean"),
+                  avg_pred=("proba", "mean"),
+                  min_pred=("proba", "min"),
+                  max_pred=("proba", "max"),
+              )
+              .reset_index()
         )
-
         g["model"] = name
+        g["n_bins_used"] = g.shape[0]
         rows.append(g)
 
-        ax.plot(g["avg_pred"], g["actual_rate"], marker="o", label=name)
+        ax.plot(g["avg_pred"], g["actual_rate"], marker="o", label=f"{name}")
 
     ax.set_xlabel("Average predicted probability")
     ax.set_ylabel("Actual positive rate")
-    ax.set_title(title)
+    ax.set_title(title + f" | bins={n_bins}, strategy={strategy}")
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.6)
-    ax.legend()
+    ax.legend(fontsize=8)
 
     fig.tight_layout()
-    if save_path is not None:
-        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+
+    if save_name:
+        save_path = get_models_dir() / save_name
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+
+    plt.show()
 
     return pd.concat(rows, ignore_index=True)
 

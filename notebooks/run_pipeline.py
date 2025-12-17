@@ -112,6 +112,8 @@ lgbm_preview
 
 # ### 3. Model Training
 
+# The aim of this part is to train model based on specified parameter, using different sampling methods.
+
 # In[10]:
 
 
@@ -123,113 +125,158 @@ X_train, X_val, y_train, y_val = split_data(X, y)
 # In[11]:
 
 
-from CreditCardApproval.model_training import train_glm
+from CreditCardApproval.model_training import train_glm, train_lgbm, run_training_all_sampling
 
-glm_model, glm_auc = train_glm(X_train, y_train, X_val, y_val)
-glm_auc
+# GLM: baseline + 3 sampling
+glm_models_fixed, glm_train_auc_table = run_training_all_sampling(
+    "glm", X_train, y_train, X_val, y_val
+)
 
+# LGBM: baseline + 3 sampling
+lgbm_models_fixed, lgbm_train_auc_table = run_training_all_sampling(
+    "lgbm", X_train, y_train, X_val, y_val
+)
 
-# In[12]:
-
-
-from CreditCardApproval.model_training import train_lgbm
-
-lgbm_model, lgbm_auc = train_lgbm(X_train, y_train, X_val, y_val)
-lgbm_auc
+pd.concat([glm_train_auc_table, lgbm_train_auc_table], axis=0).reset_index(drop=True)
 
 
 # ***
 
 # ### 4. Hyperparameter Tuning
 
-# In[13]:
+# The aim of this part is to find which sampling method has the highest AUC value, then choosing this method conducts hyperparameter tuning before moving into model evaluation.
+
+# In[12]:
 
 
-from CreditCardApproval.tuning import tune_glm, tune_lgbm
-from sklearn.metrics import roc_auc_score
+from CreditCardApproval.tuning import run_tuning_all_sampling
 
-
-# In[14]:
-
-
-glm_best_model, glm_best_params = tune_glm(
-    X_train,
-    y_train,
-    cv_splits=5,
+# GLM tuning: baseline + 3 sampling
+glm_models_tuned, glm_tuned_auc_table = run_tuning_all_sampling(
+    "glm", X_train, y_train, X_val, y_val, cv_splits=5
 )
 
-glm_best_params
-
-
-# In[15]:
-
-
-glm_val_proba = glm_best_model.predict_proba(X_val)[:, 1]
-glm_val_auc = roc_auc_score(y_val, glm_val_proba)
-
-glm_val_auc
-
-
-# In[16]:
-
-
-lgbm_best_model, lgbm_best_params = tune_lgbm(
-    X_train,
-    y_train,
-    cv_splits=5,
+# LGBM tuning: baseline + 3 sampling
+lgbm_models_tuned, lgbm_tuned_auc_table = run_tuning_all_sampling(
+    "lgbm", X_train, y_train, X_val, y_val, cv_splits=5
 )
 
-lgbm_best_params
+pd.concat([glm_tuned_auc_table, lgbm_tuned_auc_table], axis=0).reset_index(drop=True)
 
 
-# In[17]:
-
-
-lgbm_val_proba = lgbm_best_model.predict_proba(X_val)[:, 1]
-lgbm_val_auc = roc_auc_score(y_val, lgbm_val_proba)
-
-lgbm_val_auc
-
-
-# In[18]:
-
-
-pd.DataFrame(
-    {
-        "Model": ["GLM (baseline)", "GLM (tuned)", "LGBM (baseline)", "LGBM (tuned)"],
-        "Validation AUC": [
-            glm_auc,
-            glm_val_auc,
-            lgbm_auc,
-            lgbm_val_auc,
-        ],
-    }
-)
-
+# Review:
+# 
+# 【】The baseline LGBM without sampling achieves optimal validation AUC (0.764), outperforming all resampling strategies including tuned baseline (0.746). Hence, the baseline model with default hyperparameters is retained as the final configuration, demonstrating that aggressive hyperparameter optimization does not universally improve model performance and can occasionally introduce overfitting to the tuning process itself.
 
 # ***
 
 # ### 5. Model Evaluation & Comparison
 
-# In[19]:
+# ##### ① Optimal Threshold
+
+# In[13]:
 
 
-from CreditCardApproval.evaluation import compare_models
+from CreditCardApproval.evaluation import find_optimal_threshold
 
-summary = compare_models(
-    models={
-        "GLM (baseline)": glm_model,
-        "GLM (tuned)": glm_best_model,
-        "LGBM (baseline)": lgbm_model,
-        "LGBM (tuned)": lgbm_best_model,
-    },
-    X=X_val,
-    y=y_val,
-    threshold=0.5,
+models_16 = {}
+
+for s in ["baseline", "smote", "undersample", "combined"]:
+    models_16[f"GLM_fixed_{s}"]  = glm_models_fixed[s]
+    models_16[f"GLM_tuned_{s}"]  = glm_models_tuned[s]
+    models_16[f"LGBM_fixed_{s}"] = lgbm_models_fixed[s]
+    models_16[f"LGBM_tuned_{s}"] = lgbm_models_tuned[s]
+
+threshold_rows = []
+threshold_tables = {}
+
+for name, model in models_16.items():
+    y_proba = model.predict_proba(X_val)[:, 1]
+
+    best_t, thr_table = find_optimal_threshold(
+        y_true=y_val,
+        y_proba=y_proba,
+        metric="f2",
+    )
+
+    threshold_tables[name] = thr_table
+    threshold_rows.append({
+        "model_name": name,
+        "optimal_threshold_f2": best_t,
+        "best_f2": thr_table.loc[thr_table["threshold"].sub(best_t).abs().idxmin(), "f2"]
+        if "f2" in thr_table.columns else None
+    })
+
+threshold_summary = (
+    pd.DataFrame(threshold_rows)
+      .sort_values(["model_name"])
+      .reset_index(drop=True)
 )
 
-summary
+threshold_summary
 
+
+# In[14]:
+
+
+optimal_thresholds_16 = dict(
+    zip(threshold_summary["model_name"], threshold_summary["optimal_threshold_f2"])
+)
+optimal_thresholds_16 = {k: optimal_thresholds_16[k] for k in models_16.keys()}
+
+
+# In[15]:
+
+
+from CreditCardApproval.evaluation import plot_threshold_curves_grid
+
+plot_threshold_curves_grid(
+    models=models_16, X=X_val, y=y_val,
+    optimal_thresholds=optimal_thresholds_16,
+    title="Threshold Curves (16 models, Validation)",
+    save_name="16_Threshold_Curves",
+    ncols=4
+)
+
+
+# Review: 
+# 
+# The optimal thresholds (GLM: 0.14, LGBM: 0.18) deviate substantially from the conventional 0.5 benchmark, directly reflecting the severe class imbalance (1-3% positive cases) in the dataset. LGBM demonstrates significant performance enhancement at the optimized threshold, with F2 scores improving from 0.09 to 0.32, which is a fourfold increase in detection capability.
+
+# In[17]:
+
+
+from CreditCardApproval.evaluation import evaluate_models_table
+
+model_evaluation_outcomes = evaluate_models_table(
+    models=models_16,
+    X=X_val,
+    y=y_val,
+    thresholds=optimal_thresholds_16,
+    sort_by="auc",
+    ascending=False
+)
+
+model_evaluation_outcomes
+
+
+# In[22]:
+
+
+tmp = model_evaluation_outcomes["model_name"].str.split("_", expand=True)
+model_evaluation_outcomes.insert(1, "algo", tmp[0])
+model_evaluation_outcomes.insert(2, "params", tmp[1])
+model_evaluation_outcomes.insert(3, "sampling", tmp[2])
+
+model_evaluation_outcomes
+
+
+# Review:
+# 
+# 1) LGBM substantially outperforms GLM across all configurations (AUC: 0.67-0.76 vs 0.43-0.56), confirming the inadequacy of linear models for this classification task.
+# 2) LGBM baseline achieves the highest validation AUC (0.764) and demonstrates balanced performance metrics, suggesting that resampling techniques introduce noise rather than improvement for this dataset.
+# 3) Undersampling and combined strategies yield extreme recall values (82-100%) at the cost of severely degraded precision (2-3%), indicating model collapse toward majority-class prediction. This pattern renders such configurations impractical for deployment.
+# 4) LGBM baseline with optimized threshold (0.18) emerges as the recommended model, balancing discrimination capability (AUC 0.764) with operational metrics (recall 30%, precision 36%, F2 0.31).
 
 # ***
 
@@ -237,153 +284,96 @@ summary
 
 # ##### ① ROC Curve
 
-# In[20]:
+# In[18]:
 
 
-from CreditCardApproval.evaluation import plot_roc_curves
+from CreditCardApproval.evaluation import plot_roc_curves_grid
 
-plot_roc_curves(
-    models={
-        "GLM": glm_model,
-        "LGBM": lgbm_model,
-    },
-    X=X_val,
-    y=y_val,
+plot_roc_curves_grid(
+    models=models_16, X=X_val, y=y_val,
+    title="ROC Curves (16 models, Validation)",
+    save_name="16_ROC_Curves",
+    ncols=4
 )
 
 
 # ##### ② Confusion Matrix
 
-# In[21]:
+# In[19]:
 
 
-from CreditCardApproval.evaluation import plot_confusion_matrix
+from CreditCardApproval.evaluation import plot_confusion_matrices_grid
 
-plot_confusion_matrix(
-    lgbm_model,
-    X_val,
-    y_val,
-    threshold=0.3,
-    title="LGBM Confusion Matrix (threshold=0.3)",
+plot_confusion_matrices_grid(
+    models=models_16, X=X_val, y=y_val,
+    thresholds=optimal_thresholds_16,
+    title="Confusion Matrices with Optimal Threshold (16 models, Validation)",
+    save_name="16_Confusion_Matrices",
+    ncols=4
 )
 
 
-# ##### ③ Optimal Threshold
+# ##### ③ Compare predicted and actual data
 
-# In[22]:
-
-
-from CreditCardApproval.evaluation import find_optimal_threshold
-
-# 1) get predicted probabilities
-glm_proba = glm_model.predict_proba(X_val)[:, 1]
-lgbm_proba = lgbm_model.predict_proba(X_val)[:, 1]
-
-# 2) find optimal thresholds
-glm_best_t, glm_thr_table = find_optimal_threshold(
-    y_true=y_val,
-    y_proba=glm_proba,
-    metric="f2",
-)
-
-lgbm_best_t, lgbm_thr_table = find_optimal_threshold(
-    y_true=y_val,
-    y_proba=lgbm_proba,
-    metric="f2",
-)
-
-glm_best_t, lgbm_best_t
-
-
-# In[23]:
-
-
-from CreditCardApproval.evaluation import plot_threshold_curves
-
-plot_threshold_curves(
-    y_true=y_val,
-    y_proba=glm_proba,
-    title="GLM Threshold vs Metrics"
-)
-
-
-# In[24]:
-
-
-from CreditCardApproval.evaluation import plot_threshold_curves
-
-plot_threshold_curves(
-    y_true=y_val,
-    y_proba=lgbm_proba,
-    title="LGBM Threshold vs Metrics"
-)
-
-
-# In[25]:
-
-
-from CreditCardApproval.evaluation import compare_models
-
-summary_opt = compare_models(
-    models={
-        "GLM (t=0.5)": glm_model,
-        "GLM (opt F2)": glm_model,
-        "LGBM (t=0.5)": lgbm_model,
-        "LGBM (opt F2)": lgbm_model,
-    },
-    X=X_val,
-    y=y_val,
-    threshold={
-        "GLM (t=0.5)": 0.5,
-        "GLM (opt F2)": glm_best_t,
-        "LGBM (t=0.5)": 0.5,
-        "LGBM (opt F2)": lgbm_best_t,
-    },
-)
-
-summary_opt
-
-
-# ##### ④ Compare predicted and actual data
-
-# In[26]:
-
-
-from CreditCardApproval.evaluation import plot_predicted_vs_actual
-
-cal_table = plot_predicted_vs_actual(
-    models={"GLM": glm_model, "LGBM": lgbm_model},
-    X=X_val,
-    y=y_val,
-    n_bins=10,
-    strategy="quantile",
-)
-
-cal_table.head(10)
-
-
-# ##### ⑤ Feature importance
+# Based on previous model comparasion, a logistic regression model without resampling or hyperparameter tuning is adopted as a benchmark model due to its transparency and interpretability.
+# 
+# For the main risk assessment model, a LightGBM classifier trained on the original imbalanced dataset is selected. The model achieves the highest AUC and KS values among all candidates, indicating superior discriminatory power in ranking customer credit risk.
+# 
+# Notably, resampling techniques such as SMOTE and undersampling do not improve model performance, suggesting that preserving the original default distribution is critical for effective credit risk modeling in this dataset.
 
 # In[27]:
 
 
-from CreditCardApproval.evaluation import (
-    get_glm_feature_importance,
-    get_lgbm_feature_importance,
+from CreditCardApproval.evaluation import plot_predicted_vs_actual
+
+best_glm_model = glm_models_fixed["baseline"]
+best_lgbm_model = lgbm_models_fixed["baseline"]
+
+final_models = {
+    "Best_GLM": best_glm_model,
+    "Best_LGBM": best_lgbm_model,
+}
+
+calib_table = plot_predicted_vs_actual(
+    final_models,
+    X_val,
+    y_val,
+    n_bins=10,
+    strategy="quantile",
+    title="Calibration: Predicted vs Actual (Test)",
+    save_name="2_predicted_actual_calibration"
 )
 
-glm_imp = get_glm_feature_importance(glm_model, top_k=10)
-lgbm_imp = get_lgbm_feature_importance(lgbm_model, top_k=10)
+calib_table
 
-print(f"Feature importance of GLM:\n", glm_imp)
-print(f"\nFeature importance of LGBM:\n", lgbm_imp)
 
+# ##### ④ Feature importance
+
+# In[30]:
+
+
+from CreditCardApproval.evaluation import get_glm_feature_importance
+
+glm_imp = get_glm_feature_importance(best_glm_model, top_k=10)
+print(f"Feature importance of GLM:\n")
+glm_imp
+
+
+# In[31]:
+
+
+from CreditCardApproval.evaluation import get_lgbm_feature_importance
+
+lgbm_imp = get_lgbm_feature_importance(best_lgbm_model, top_k=10)
+print(f"\nFeature importance of LGBM:\n")
+lgbm_imp
+
+
+# Review:
+# 
+# 
 
 # ***
-
-# ### 7. Conclusion
-
-# 
 
 # In[ ]:
 

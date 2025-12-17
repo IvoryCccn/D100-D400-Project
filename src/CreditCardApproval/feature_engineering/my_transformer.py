@@ -13,7 +13,7 @@ class Log1pTransformer(BaseEstimator, TransformerMixin):
     """
     Apply log(1 + x) transformation to selected numeric columns.
 
-    Notes
+    Notes:
         - Intended for non-negative variables (e.g., income, counts, durations).
         - If negative values are found during transform, an error is raised to avoid silently producing NaNs.
     """
