@@ -44,10 +44,6 @@ X, y = make_X_y(processed_df)
 summarize_target(y)
 
 
-# Review:
-# 
-# The target variable exhibits pronounced class imbalance, with the vast majority of customers in the sample are labeled as non-defaulting, while defaulting customers constituting only a tiny fraction of the total population. To address this severe imbalance, multiple resampling methods were introduced for comparative analysis in subsequent modeling stages, including oversampling, undersampling, and combined approaches.
-
 # ##### ② Configuration and feature schema
 
 # In[5]:

@@ -17,7 +17,7 @@ from CreditCardApproval.paths import get_figures_dir
 
 def basic_overview(df: pd.DataFrame, n_head: int = 5) -> None:
     """
-    Print basic information for quick EDA.
+    Print dataset size and basic structure.
     """
     print("\nNumber of datapoints for application records: {}".format(len(df)))
     print("\nNumber of unique clients in dataset: {}".format(len(df['ID'].unique())))
@@ -28,7 +28,7 @@ def basic_overview(df: pd.DataFrame, n_head: int = 5) -> None:
 
 def save_figure(fig: plt.Figure, filename: str, dpi: int = 150):
     """
-    Save matplotlib figure to outputs/figures directory.
+    Save figure to outputs/figures.
     """
     path = get_figures_dir() / filename
     fig.tight_layout()
@@ -42,7 +42,7 @@ def save_figure(fig: plt.Figure, filename: str, dpi: int = 150):
 
 def missing_value_summary(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Return a table of missing counts and missing rates by column.
+    Summarize missing counts and rates by column.
     """
     miss_count = df.isna().sum()
     miss_rate = miss_count / len(df)
@@ -84,9 +84,7 @@ def plot_missing_matrix(
 
 def unique_value_summary(df: pd.DataFrame, ascending: bool = True, top_n: int = None) -> pd.DataFrame:
     """
-    Calculate the number of unique values for each column.
-    
-    Returns DataFrame with columns ['Column_Name', 'Num_Unique'] sorted by unique count.
+    Count unique values per column.
     """
     unique_counts = pd.DataFrame.from_records(
         [(col, df[col].nunique()) for col in df.columns],
@@ -101,7 +99,7 @@ def unique_value_summary(df: pd.DataFrame, ascending: bool = True, top_n: int = 
 
 def split_num_cat_features(df: pd.DataFrame) -> tuple:
     """
-    Simple split based on data types only.
+    Split numerical and categorical features by dtype.
     """
     numerical_features = df.select_dtypes(include=['int64', 'int32', 'float64', 'float32']).columns.tolist()
     categorical_features = df.select_dtypes(include=['object', 'category', 'bool']).columns.tolist()
@@ -114,7 +112,7 @@ def split_num_cat_features(df: pd.DataFrame) -> tuple:
 
 def describe_numerical_features(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Descriptive statistics for numerical features.
+    Compute descriptive stats for numerical features.
     """
     features = [col for col in df.columns if col != 'ID']
 
@@ -127,7 +125,7 @@ def describe_numerical_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def describe_categorical_features(df: pd.DataFrame) -> None:
     """
-    Display value counts for categorical features.
+    Print value counts for categorical features.
     """
     features = [col for col in df.columns if col != 'ID']
 
@@ -155,7 +153,7 @@ def plot_histograms(
     save_name: str | None = None,
 ):
     """
-    Plot histograms for multiple numerical variables in a 2x3 grid.
+    Plot histograms for selected numerical variables in a 2x3 grid.
     """
     fig, axes = plt.subplots(2, 3, figsize=figsize)
     axes = axes.flatten()
@@ -169,7 +167,7 @@ def plot_histograms(
         ax.set_ylabel("Count")
         ax.set_xlabel(col)
 
-    # Remove unused subplots
+    # remove unused subplots
     if len(columns) < len(axes):
         for j in range(len(columns), len(axes)):
             fig.delaxes(axes[j])
@@ -281,9 +279,9 @@ def transform_birth_and_employed(df: pd.DataFrame) -> pd.DataFrame:
     Transform DAYS_BIRTH and DAYS_EMPLOYED into interpretable features.
 
     Outputs:
-    - age_years: positive age in years
-    - is_unemployed: 1 if DAYS_EMPLOYED is positive (special coding), else 0
-    - employed_years: years employed for employed people; NaN for unemployed
+        - age_years: positive age in years
+        - is_unemployed: 1 if DAYS_EMPLOYED is positive (special coding), else 0
+        - employed_years: years employed for employed people; NaN for unemployed
     """
     out = df[["ID", "DAYS_BIRTH", "DAYS_EMPLOYED"]].copy()
 
@@ -293,7 +291,7 @@ def transform_birth_and_employed(df: pd.DataFrame) -> pd.DataFrame:
     # handle DAYS_EMPLOYED
     out["is_unemployed"] = (out["DAYS_EMPLOYED"] > 0).astype(int)
 
-    # For employed people (DAYS_EMPLOYED <= 0), convert to positive years
+    # for employed people (DAYS_EMPLOYED <= 0), convert to positive years
     out["employed_years"] = np.where(
         out["DAYS_EMPLOYED"] <= 0,
         (-out["DAYS_EMPLOYED"] / 365.25),
@@ -316,32 +314,27 @@ def plot_birth_and_employed(
 ):
     """
     Plot 3 EDA charts in a single row (1x3):
-    1) Age distribution histogram
-    2) Employment status bar chart (0=employed, 1=unemployed)
-    3) Employment duration histogram for employed people (optionally clipped for readability)
-
-    Assumes the input df already contains:
-    - age_col: positive age in years
-    - unemployed_col: binary indicator (1 means unemployed)
-    - employed_years_col: years employed (NaN for unemployed)
+        1) Age distribution histogram
+        2) Employment status bar chart (0=employed, 1=unemployed)
+        3) Employment duration histogram for employed people (optionally clipped for readability)
     """
     fig, axes = plt.subplots(1, 3, figsize=figsize)
 
-    # 1) Age histogram
+    # 1) age histogram
     age_data = df[age_col].dropna()
     axes[0].hist(age_data, bins=bins)
     axes[0].set_title(age_col)
     axes[0].set_xlabel("Age (years)")
     axes[0].set_ylabel("Count")
 
-    # 2) Unemployment status bar
+    # 2) unemployment status bar
     status_counts = df[unemployed_col].value_counts(dropna=False).sort_index()
     axes[1].bar(status_counts.index.astype(str), status_counts.values)
     axes[1].set_title(unemployed_col)
     axes[1].set_xlabel("Value (0=Employed, 1=Unemployed)")
     axes[1].set_ylabel("Count")
 
-    # 3) Employment duration histogram (nested helper)
+    # 3) employment duration histogram
     def _plot_employed_years_hist(ax: plt.Axes) -> None:
         emp = df.loc[df[unemployed_col] == 0, employed_years_col].dropna()
 
@@ -409,7 +402,7 @@ def plot_numeric_boxplots(
         ax.set_title(col)
         ax.set_ylabel(col)
 
-    # Hide unused subplots
+    # hide unused subplots
     for ax in axes[len(columns):]:
         ax.set_visible(False)
 
@@ -544,7 +537,6 @@ def plot_status_distribution(
 ):
     """
     Plot distribution of credit STATUS values.
-    If parameters 'normalize' equal to True, plot proportions instead of counts.
     """
     counts = df[status_col].value_counts(dropna=False, normalize=normalize)
     counts = counts.sort_index()  # keep X/C/0..5 in stable order if possible

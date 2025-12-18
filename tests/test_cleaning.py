@@ -58,7 +58,7 @@ def test_clip_outliers_application_clips_by_quantiles():
     # make a numeric column with extreme outliers
     rng = np.random.default_rng(42)
     base_income = rng.normal(loc=200000, scale=20000, size=1000)
-    income = np.concatenate([base_income, [10_000_000, 20_000_000]])  # extreme high
+    income = np.concatenate([base_income, [10_000_000, 20_000_000]])
     employed_years = np.concatenate([rng.uniform(0, 20, size=1000), [50, 60]])
 
     df = pd.DataFrame(

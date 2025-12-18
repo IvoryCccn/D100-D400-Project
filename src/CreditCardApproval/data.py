@@ -22,16 +22,21 @@ def get_data_paths(
     """
     data_dir = get_data_dir()
 
+    # raw data paths
     application_path = data_dir / application_filename
     credit_path = data_dir / credit_filename
+    
+    # processed data path
     processed_path = data_dir / processed_filename
     
+    # ensure raw data exists
     if not application_path.exists():
         raise FileNotFoundError(f"Application data not found: {application_path}")
 
     if not credit_path.exists():
         raise FileNotFoundError(f"Credit data not found: {credit_path}")
-        
+    
+    # optional processed data check
     if require_processed and (not processed_path.exists()):
         raise FileNotFoundError(f"Processed data not found: {processed_path}")
 
@@ -46,7 +51,7 @@ def load_data(
     Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame],
 ]:
     """
-    Load datasets.
+    Load raw and/or processed datasets.
 
     return_type:
         - "raw": return (application_df, credit_df)
@@ -57,17 +62,12 @@ def load_data(
 
     application_df = credit_df = processed_df = None
 
-    # raw data
+    # load raw data
     if return_type in ("raw", "all"):
-        if not application_path.exists():
-            raise FileNotFoundError(f"Application data not found: {application_path}")
-        if not credit_path.exists():
-            raise FileNotFoundError(f"Credit data not found: {credit_path}")
-
         application_df = pd.read_csv(application_path)
         credit_df = pd.read_csv(credit_path)
 
-    # processed data
+    # load processed data
     if return_type in ("processed", "all"):
         if not processed_path.exists():
             raise FileNotFoundError(f"Processed data not found: {processed_path}")
