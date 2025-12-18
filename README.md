@@ -1,61 +1,116 @@
 # D100-D400-Project
 D100 and D400 Final Project (BGN 6142P)
 
-Research Motivation（研究动机）
-背景（Background）
+# ======================================================
+# Pre Setup
+# ======================================================
 
-信用卡审批（Credit Card Approval）是金融机构风险管理中的核心问题之一。银行在决定是否向申请人发放信用卡时，需要在控制违约风险与扩大客户规模之间取得平衡。传统的信用评分系统通常基于申请人提交的个人信息（如年龄、收入、教育背景等），并利用历史数据构建预测模型来评估潜在风险。
+Before running notebook, please ensure virtual environment is created from the terminal
 
-在现实业务中，银行在审批阶段只能获取申请人提交的个人信息，而申请人是否为“好客户”或“坏客户”往往只能通过发卡后的信用卡使用行为来观察。因此，如何基于事后行为数据合理构造信用标签，并利用申请时可获得的信息进行预测，是一个具有实际意义的问题。
-
-研究问题（Research Question）
-
-本项目旨在回答以下核心问题：
-
-是否可以仅基于信用卡申请阶段的个人信息，准确预测申请人在未来是否会成为“好客户”或“坏客户”？
-
-具体而言，本项目关注以下几个子问题：
-
-如何基于信用卡使用行为数据（如还款状态、逾期情况等）合理定义“好客户”和“坏客户”；
-
-在样本高度不平衡的情况下，构建稳健的信用风险预测模型；
-
-传统可解释模型（GLM）与非线性机器学习模型（LightGBM）在该任务中的预测能力和解释性差异。
-
-数据说明与建模逻辑（Data & Modeling Logic）
-
-本项目使用两个相互关联的数据集：
-
-application_record.csv：包含信用卡申请人提交的个人信息，仅包括在审批时银行可以获取的特征，用作模型的输入特征（features）；
-
-credit_record.csv：记录申请人获得信用卡后的使用行为和还款状态，用于构造信用质量标签（target variable）。
-
-在建模过程中，credit_record.csv 中的信息不会作为模型输入特征，而仅用于定义申请人的真实信用表现。这一设计确保了模型设置符合真实信用审批场景，避免信息泄露（data leakage）。
-
-方法选择（Methodology）
-
-为了兼顾预测性能与模型可解释性，本项目对比了两类模型：
-
-广义线性模型（GLM）：作为信用评分领域的经典方法，具有良好的可解释性，便于理解各特征对违约风险的影响；
-
-LightGBM（LGBM）：作为一种基于梯度提升树的非线性模型，能够捕捉复杂的特征交互关系，通常在预测精度上具有优势。
-
-通过对两类模型的系统比较，本项目希望评估：
-
-在信用卡审批这一实际问题中，非线性模型是否显著优于传统线性模型；
-
-在预测性能与可解释性之间应如何权衡。
-
-项目意义（Contribution）
-
-本项目的主要贡献包括：
-
-基于真实业务逻辑构造信用风险标签，增强模型结果的现实解释性；
-
-在不平衡分类问题下，对比不同建模方法的表现；
-
-提供一个可复现、结构化、工程化的数据科学建模流程示例，涵盖数据处理、建模、调参与模型解释。
+    - cd <project_path>
+    - conda create -n credit-card-approval
+    - conda activate credit-card-approval
+    - pip install -e .
 
 
-pytest -v
-pytest tests/test_my_transformer.py -v
+# ======================================================
+# Raw data
+# ======================================================
+
+data can be downloaded from https://www.kaggle.com/datasets/rikdifos/credit-card-approval-prediction/data
+
+
+# ======================================================
+# Tool: function_usage_chech.py
+# ======================================================
+
+`function_usage_check.py` is a utility script used to analyze function usage across the project. It helps identify functions that are defined but never called, as well as potential missing or redundant logic in the codebase, by checking how functions are used in both `src` and `notebook` directories.
+
+The script is placed in the parent (project root) directory and can be executed directly from the terminal. To run the check and view the results, simply use:
+
+    - py function_usage_check.py
+
+Since `.ipynb` files cannot be analyzed directly, the notebook folder contains Python (`.py`) versions of the corresponding notebooks. These converted files are used to ensure that function calls inside notebooks are also included in the usage check.
+
+
+# ======================================================
+# pytest
+# ======================================================
+
+To run a pytest for the project, please run the following in the terminal:
+
+    - pytest
+
+
+# ======================================================
+# Project Mindmap
+# ======================================================
+
+D100-D400-Project
+│  .gitignore
+│  .pre-commit-config.yaml
+│  environment.yml
+│  function_usage_check.py
+│  pyproject.toml
+│  README.md
+│
+├─data
+│      application_record.csv
+│      credit_record.csv
+│      processed_df.parquet
+│
+├─notebooks
+│  │  eda_cleaning.ipynb
+│  │  eda_cleaning.py
+│  │  run_pipeline.ipynb
+│  └─ run_pipeline.py
+│
+├─outputs
+│  ├─figures
+│  │      application_missing_matrix.png
+│  │      boxplots_numerical_variables (Cleaned).png
+│  │      boxplots_numerical_variables.png
+│  │      credit_missing_matrix.png
+│  │      credit_severity_counts.png
+│  │      credit_severity_ratio.png
+│  │      credit_status_counts.png
+│  │      credit_status_ratio.png
+│  │      distribution_binary_bar_charts.png
+│  │      distribution_binary_pie_charts.png
+│  │      distribution_birth_and_employed.png
+│  │      distribution_creditrecords_ID.png
+│  │      distribution_creditrecords_month.png
+│  │      distribution_histograms.png
+│  │      distribution_multiclass_bar_charts.png
+│  │      heatmap_numercial_variables.png
+│  │
+│  └─models
+│          16_Confusion_Matrices.png
+│          16_ROC_Curves.png
+│          16_Threshold_Curves.png
+│          2_predicted_actual_calibration.png
+│
+├─src
+│  └─CreditCardApproval
+│     │  cleaning.py
+│     │  data.py
+│     │  eda.py
+│     │  evaluation.py
+│     │  modeling.py
+│     │  model_training.py
+│     │  paths.py
+│     │  tuning.py
+│     │  __init__.py
+│     │
+│     └─feature_engineering
+│        │  my_transformer.py
+│        └─ __init__.py
+│ 
+└─tests
+   │  test_cleaning.py
+   │  test_data.py
+   │  test_evaluation.py
+   │  test_modeling.py
+   │  test_model_training.py
+   │  test_my_transformer.py
+   └─ test_paths.py

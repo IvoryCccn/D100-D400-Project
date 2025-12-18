@@ -7,6 +7,10 @@
 
 # In[1]:
 
+
+import pandas as pd
+import numpy as np
+
 from CreditCardApproval.data import load_data
 from CreditCardApproval.eda import (
     basic_overview,
@@ -48,7 +52,7 @@ application_df, credit_df = load_data(return_type="raw")
 
 # ### I. Brief Overview
 
-# In[4]:
+# In[3]:
 
 
 # brief look
@@ -56,14 +60,14 @@ print("application information dataset:")
 application_df.head()
 
 
-# In[5]:
+# In[4]:
 
 
 # basic overview of application dataset
 basic_overview(application_df)
 
 
-# In[6]:
+# In[5]:
 
 
 # brief look
@@ -71,14 +75,14 @@ print("credit performance dataset:")
 credit_df.head()
 
 
-# In[7]:
+# In[6]:
 
 
 # basic overview of credit dataset
 basic_overview(credit_df)
 
 
-# In[8]:
+# In[7]:
 
 
 # see how many records match in two datasets
@@ -98,7 +102,7 @@ print("Number of ID match in two datasets:", len(set(credit_df['ID']).intersecti
 
 # ##### 1. Missing Value Analysis
 
-# In[9]:
+# In[8]:
 
 
 # Missing value
@@ -106,7 +110,7 @@ print("Missing values of application_df:")
 missing_value_summary(application_df)
 
 
-# In[10]:
+# In[9]:
 
 
 # Plot missing rate
@@ -124,7 +128,7 @@ plot_missing_matrix(
 # * drop `OCCUPATION_TYPE` column because it contains excessive missing values (approximately 30.60% missing rate as identified in missing value analysis).
 # 
 
-# In[11]:
+# In[10]:
 
 
 # 1. Remove duplicates based on ID column
@@ -139,7 +143,7 @@ application_df = application_df.drop('OCCUPATION_TYPE', axis=1)
 
 # ##### 2. Data Type Analysis
 
-# In[12]:
+# In[11]:
 
 
 # Unique value
@@ -147,21 +151,21 @@ print("Unique values of application_df:")
 unique_value_summary(application_df)
 
 
-# In[13]:
+# In[12]:
 
 
 # categorize data
 app_numerical_df, app_categorical_df = split_num_cat_features(application_df)
 
 
-# In[14]:
+# In[13]:
 
 
 # Numerical data analysis
 describe_numerical_features(app_numerical_df)
 
 
-# In[15]:
+# In[14]:
 
 
 # Categorical data analysis
@@ -181,7 +185,7 @@ describe_categorical_features(app_categorical_df)
 
 # ##### 3. Distribution Analysis
 
-# In[16]:
+# In[15]:
 
 
 histogram_col = ['CNT_CHILDREN', 'AMT_INCOME_TOTAL', 'DAYS_BIRTH', 'DAYS_EMPLOYED', 'CNT_FAM_MEMBERS']
@@ -190,7 +194,7 @@ bar_binary_col = ['FLAG_WORK_PHONE', 'FLAG_PHONE', 'FLAG_EMAIL']
 bar_multi_col = ['NAME_INCOME_TYPE', 'NAME_EDUCATION_TYPE', 'NAME_FAMILY_STATUS', 'NAME_HOUSING_TYPE']
 
 
-# In[17]:
+# In[16]:
 
 
 # histogram of continuous variables: CNT_CHILDREN, AMT_INCOME_TOTAL, DAYS_BIRTH, DAYS_EMPLOYED, CNT_FAM_MEMBERS
@@ -211,7 +215,7 @@ plot_histograms(
 # 
 # These observations indicate that outlier treatment and variable transformation are required before modeling.
 
-# In[18]:
+# In[17]:
 
 
 # pie chart of binary variables: CODE_GENDER, FLAG_OWN_CAR, FLAG_OWN_REALTY
@@ -231,7 +235,7 @@ plot_pie_charts(
 # 
 # These variables are informative demographic indicators and can be directly incorporated into the predictive model.
 
-# In[19]:
+# In[18]:
 
 
 # bar chart of binary variables: FLAG_WORK_PHONE, FLAG_PHONE, FLAG_EMAIL
@@ -250,7 +254,7 @@ plot_binary_bar_charts(
 # 
 # The limited variation in these features suggests they may have weaker predictive power individually but could still provide complementary information when combined with other variables.
 
-# In[20]:
+# In[19]:
 
 
 # bar chart of multiclass variables: NAME_INCOME_TYPE, NAME_EDUCATION_TYPE, NAME_FAMILY_STATUS, NAME_HOUSING_TYPE
@@ -275,7 +279,7 @@ plot_multiclass_bar_charts(
 # 1) For interpretability, `DAYS_BIRTH` is transformed into age in years (age_years = -`DAYS_BIRTH` / 365).
 # 2) `DAYS_EMPLOYED` contains a special positive value indicating unemployment. To improve interpretability, I separate employment status and employment duration. When `DAYS_EMPLOYED` > 0, refer to "unemployed"; when `DAYS_EMPLOYED` < 0, transformed into employment duration in years(years_employed = -`DAYS_EMPLOYED` / 365).
 
-# In[21]:
+# In[20]:
 
 
 # solve DAYS_BIRTH and DAYS_EMPLOYED
@@ -283,7 +287,7 @@ application_df2 = transform_birth_and_employed(application_df)
 application_df2.head()
 
 
-# In[22]:
+# In[21]:
 
 
 # plot DAYS_BIRTH and DAYS_EMPLOYED
@@ -308,7 +312,7 @@ plot_birth_and_employed(
 # 
 # For better interpretability, `DAYS_BIRTH` and `DAYS_EMPLOYED` are transformed into age and employment-related features (`age_years`, `is_unemployed` and `employed_years`). The transformed features are merged back to the application data, and the original day-based variables are removed.
 
-# In[23]:
+# In[22]:
 
 
 application_df2 = application_df2.drop(
@@ -332,7 +336,7 @@ del application_df2
 # 
 # Outliers analysis will be conducted only among numerical variables to see what detailed handling should do in the cleaning stage.
 
-# In[24]:
+# In[23]:
 
 
 numeric_cols = [
@@ -344,7 +348,7 @@ numeric_cols = [
 ]
 
 
-# In[25]:
+# In[24]:
 
 
 plot_numeric_boxplots(
@@ -373,7 +377,7 @@ plot_numeric_boxplots(
 # 
 # Pairwise correlations will be conducted only among numerical variable to identify potential linear relationships.
 
-# In[26]:
+# In[25]:
 
 
 plot_correlation_heatmap(
@@ -393,7 +397,7 @@ plot_correlation_heatmap(
 # Overall, no severe multicollinearity is observed, suggesting that most numerical features can be jointly included in the model without causing instability, though closely related family size variables may require careful consideration during feature selection.
 # 
 
-# In[27]:
+# In[26]:
 
 
 del histogram_col, pie_binary_col, bar_binary_col, bar_multi_col
@@ -405,7 +409,7 @@ del histogram_col, pie_binary_col, bar_binary_col, bar_multi_col
 
 # #### 1. Missing Value Analysis
 
-# In[28]:
+# In[27]:
 
 
 # Missing value
@@ -413,7 +417,7 @@ print("Missing values of credit_df:")
 missing_value_summary(credit_df)
 
 
-# In[29]:
+# In[28]:
 
 
 # Plot missing
@@ -433,7 +437,7 @@ plot_missing_matrix(
 
 # #### 2. Panal Data Analysis
 
-# In[30]:
+# In[29]:
 
 
 # Unique value
@@ -441,7 +445,7 @@ print("Unique values of credit_df:")
 unique_value_summary(credit_df)
 
 
-# In[31]:
+# In[30]:
 
 
 # analysis credit performance per applicant
@@ -457,7 +461,7 @@ records_per_id = plot_credit_records_per_id(
 # The distribution shows substantial heterogeneity in the number of monthly credit records across applicants.
 # While most applicants have relatively short credit histories, a non-negligible group is observed over long time horizons of up to 60 months.
 
-# In[32]:
+# In[31]:
 
 
 # analysis time structure of credit record
@@ -476,7 +480,7 @@ plot_months_balance_distribution(
 
 # #### 3. Credit 'STATUS' Analysis
 
-# In[33]:
+# In[32]:
 
 
 status_counts = plot_status_distribution(
@@ -487,7 +491,7 @@ status_counts = plot_status_distribution(
 )
 
 
-# In[34]:
+# In[33]:
 
 
 status_ratio = plot_status_distribution(
@@ -502,7 +506,7 @@ status_ratio = plot_status_distribution(
 # 
 # The distribution of STATUS values is highly imbalanced. Most monthly records correspond to non-delinquent states, namely “C” (paid off), “X” (no loan), and “0” (minor delay), while severe delinquency statuses occur very infrequently. This indicates that default-like events are rare at the monthly level, highlighting strong class imbalance in raw credit records.
 
-# In[35]:
+# In[34]:
 
 
 STATUS_SEVERITY = {
@@ -517,7 +521,7 @@ STATUS_SEVERITY = {
 }
 
 
-# In[36]:
+# In[35]:
 
 
 credit_df_sev = add_status_severity(
@@ -528,7 +532,7 @@ credit_df_sev = add_status_severity(
 )
 
 
-# In[37]:
+# In[36]:
 
 
 sev_counts = plot_severity_distribution(
@@ -539,7 +543,7 @@ sev_counts = plot_severity_distribution(
 )
 
 
-# In[38]:
+# In[37]:
 
 
 sev_ratio = plot_severity_distribution(
@@ -562,37 +566,40 @@ sev_ratio = plot_severity_distribution(
 # 
 # Credit behavior is aggregated to the applicant level.
 
-# In[39]:
+# In[38]:
 
 
 credit_agg = aggregate_credit_by_id(credit_df_sev)
 credit_agg.head()
 
 
-# In[40]:
+# In[39]:
 
 
 plot_credit_history_length(
     credit_agg,
     title="Distribution of Credit History Length",
+    save_name="distribution_credit_history_length"
+)
+
+
+# In[40]:
+
+
+plot_max_severity_distribution(
+    credit_agg,
+    title="Maximum Credit Severity per Applicant",
+    save_name="distribution_maximum_credit_severity"
 )
 
 
 # In[41]:
 
 
-plot_max_severity_distribution(
-    credit_agg,
-    title="Maximum Credit Severity per Applicant",
-)
-
-
-# In[42]:
-
-
 plot_ever_severe_pie(
     credit_agg,
     title="Applicants with Severe Delinquency History",
+    save_name="distribution_severe_delinquency_history"
 )
 
 
@@ -615,7 +622,7 @@ plot_ever_severe_pie(
 # 1) **Bad customer**: An applicant who has experienced at least one month with severity ≥ 3 (i.e. 60+ days past due).
 # 2) **Good customer**: An applicant who has never experienced severity ≥ 3 during the observation period.
 
-# In[43]:
+# In[42]:
 
 
 credit_target_df = build_credit_target(
@@ -625,25 +632,25 @@ credit_target_df = build_credit_target(
 )
 
 
-# In[44]:
+# In[43]:
 
 
 credit_target_df.head()
 
 
-# In[45]:
+# In[44]:
 
 
 credit_target_df["target"].value_counts(normalize=True)
 
 
-# In[46]:
+# In[45]:
 
 
 credit_target_df.groupby("target")["max_severity"].describe()
 
 
-# In[47]:
+# In[46]:
 
 
 credit_target_df["total_months_per_ID"].describe()
@@ -660,9 +667,7 @@ from CreditCardApproval.cleaning import (
     rename_application_columns,
     handle_application_missing,
     clip_outliers_application,
-    recode_categorical_variables,
-    merge_application_with_target,
-    select_final_variables
+    recode_categorical_variables
 )
 
 
@@ -718,7 +723,7 @@ application_df_clean.isna().sum()
 
 # Based on the boxplot analysis, several numerical variables exhibit strong right-skewness and extreme values. Instead of removing observations, quantile-based clipping is applied to limit the influence of outliers while preserving the full sample size for modeling. After clipping, extreme values are effectively controlled while the overall distribution remains intact.
 
-# In[53]:
+# In[52]:
 
 
 # solving outliers of numerical variables
@@ -739,7 +744,7 @@ plot_numeric_boxplots(
 
 # Based on variable definitions and EDA results, it can be found that several categorical variables contain sparse or semantically overlapping categories, which can be recoded into broader, meaningful groups to reduce sparsity and improve model stability.
 
-# In[54]:
+# In[53]:
 
 
 # recode categorical variables
@@ -751,7 +756,7 @@ unique_value_summary(application_df_clean[["income_type_recoded", "education_lev
 # 
 # The target variable is constructed from post-issuance credit behavior and merged with cleaned application features at the applicant level. Only applicants with available credit history are retained. The final dataset is free of missing values and suitable for downstream predictive modeling.
 
-# In[79]:
+# In[54]:
 
 
 # merge credit_target_df with cleaned application data
@@ -764,7 +769,7 @@ final_df = application_df_clean.merge(
 print("final_df shape:", final_df.shape)
 
 
-# In[80]:
+# In[55]:
 
 
 # drop useless vairables and rename
@@ -778,34 +783,41 @@ final_df.head()
 # 
 # Categorical variables are intentionally kept in their original form after cleaning. Numerical encoding is deferred to the modeling stage and handled within scikit-learn pipelines to avoid data leakage and ensure consistent preprocessing between training and evaluation.
 
-# In[81]:
+# In[56]:
 
 
 # overview of final data
 final_df["target"].value_counts(normalize=True)
 
 
-# In[82]:
+# In[57]:
 
 
 final_df.isna().sum().sort_values(ascending=False).head(10)
 
 
-# In[83]:
+# In[58]:
 
 
 final_df["ID"].is_unique
 
 
-# In[84]:
+# In[61]:
 
 
 # export data and save as parquet file
-final_df.to_parquet(
-    "data/processed_df.parquet",
-    index=False,
-    engine="fastparquet"
-)
+from pathlib import Path
+
+PROJECT_ROOT = Path.cwd()
+
+if PROJECT_ROOT.name == "notebooks":
+    PROJECT_ROOT = PROJECT_ROOT.parent
+
+out_path = PROJECT_ROOT / "data" / "processed_df.parquet"
+out_path.parent.mkdir(parents=True, exist_ok=True)
+
+final_df.to_parquet(out_path, index=False, engine="fastparquet")
+print("saved to:", out_path)
 
 
 # In[ ]:

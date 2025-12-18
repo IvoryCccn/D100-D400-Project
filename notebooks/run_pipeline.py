@@ -46,7 +46,7 @@ summarize_target(y)
 
 # Review:
 # 
-# The target variable is highly imbalanced, which is typical in credit risk modeling. Instead of resampling the data, class imbalance is handled at the modeling stage by using class-weighted loss functions and appropriate evaluation metrics. Logistic regression applies balanced class weights, while LightGBM incorporates scale_pos_weight computed from the training data. Model performance is evaluated using AUC to ensure robustness under imbalance.
+# The target variable exhibits pronounced class imbalance, with the vast majority of customers in the sample are labeled as non-defaulting, while defaulting customers constituting only a tiny fraction of the total population. To address this severe imbalance, multiple resampling methods were introduced for comparative analysis in subsequent modeling stages, including oversampling, undersampling, and combined approaches.
 
 # ##### ② Configuration and feature schema
 
@@ -140,6 +140,13 @@ lgbm_models_fixed, lgbm_train_auc_table = run_training_all_sampling(
 pd.concat([glm_train_auc_table, lgbm_train_auc_table], axis=0).reset_index(drop=True)
 
 
+# Review:
+# 
+# Results indicate that:
+# 1) The LGBM model demonstrated significantly superior overall discrimination capability compared to GLM and The LGBM baseline model achieved the highest validation set AUC.
+# 2) GLM generally performed poorly across different sampling methods, with its discrimination capability further declining after applying SMOTE or undersampling. This suggests that linear models have limited adaptability to resampling methods when dealing with complex feature structures and highly imbalanced categories, making it difficult to fully identify the distinctive features of high-risk customers.
+# 3) For the LGBM model, although resampling methods partially improved the class structure, the validation set AUC remained below the baseline model. This indicates that the original sample distribution already provided sufficiently effective risk signals for the model on this dataset. Over-adjusting the sample structure may weaken the model's ability to learn from the true risk distribution.
+
 # ***
 
 # ### 4. Hyperparameter Tuning
@@ -166,7 +173,9 @@ pd.concat([glm_tuned_auc_table, lgbm_tuned_auc_table], axis=0).reset_index(drop=
 
 # Review:
 # 
-# 【】The baseline LGBM without sampling achieves optimal validation AUC (0.764), outperforming all resampling strategies including tuned baseline (0.746). Hence, the baseline model with default hyperparameters is retained as the final configuration, demonstrating that aggressive hyperparameter optimization does not universally improve model performance and can occasionally introduce overfitting to the tuning process itself.
+# After tuning, the LGBM model demonstrates consistent overall performance across different sampling strategies. Results indicate that:
+# 1) LGBM SMOTE model achieves the highest cross-validation AUC, indicating strong in-sample performance under resampled training data. But its validation AUC is noticeably lower, suggesting that the improvement observed during cross-validation does not fully generalize to unseen data.
+# 2) LGBM baseline model attains the highest validation AUC with a much smaller gap between cross-validation and validation performance, reflecting better model stability and generalization.
 
 # ***
 
@@ -174,7 +183,7 @@ pd.concat([glm_tuned_auc_table, lgbm_tuned_auc_table], axis=0).reset_index(drop=
 
 # ##### ① Optimal Threshold
 
-# In[13]:
+# In[16]:
 
 
 from CreditCardApproval.evaluation import find_optimal_threshold
@@ -216,7 +225,7 @@ threshold_summary = (
 threshold_summary
 
 
-# In[14]:
+# In[17]:
 
 
 optimal_thresholds_16 = dict(
@@ -225,7 +234,7 @@ optimal_thresholds_16 = dict(
 optimal_thresholds_16 = {k: optimal_thresholds_16[k] for k in models_16.keys()}
 
 
-# In[15]:
+# In[18]:
 
 
 from CreditCardApproval.evaluation import plot_threshold_curves_grid
@@ -241,9 +250,11 @@ plot_threshold_curves_grid(
 
 # Review: 
 # 
-# The optimal thresholds (GLM: 0.14, LGBM: 0.18) deviate substantially from the conventional 0.5 benchmark, directly reflecting the severe class imbalance (1-3% positive cases) in the dataset. LGBM demonstrates significant performance enhancement at the optimized threshold, with F2 scores improving from 0.09 to 0.32, which is a fourfold increase in detection capability.
+# Threshold curves illustrate how key performance metrics, including precision, recall, F1, and F2, vary as the classification threshold changes. It highlights the trade-offs between identifying high-risk applicants and controlling false positives, and provide a practical basis for selecting decision thresholds aligned with credit risk management objectives.
+# 
+# Compared to GLM, the LGBM model maintains relatively stable F2 performance across a broader threshold range, demonstrating greater flexibility in risk identification. This suggests that in credit approval scenarios, threshold adjustments can effectively balance default detection capability with misclassification costs, thereby enhancing the model's practical application value.
 
-# In[17]:
+# In[19]:
 
 
 from CreditCardApproval.evaluation import evaluate_models_table
@@ -260,7 +271,7 @@ model_evaluation_outcomes = evaluate_models_table(
 model_evaluation_outcomes
 
 
-# In[22]:
+# In[20]:
 
 
 tmp = model_evaluation_outcomes["model_name"].str.split("_", expand=True)
@@ -273,10 +284,26 @@ model_evaluation_outcomes
 
 # Review:
 # 
-# 1) LGBM substantially outperforms GLM across all configurations (AUC: 0.67-0.76 vs 0.43-0.56), confirming the inadequacy of linear models for this classification task.
-# 2) LGBM baseline achieves the highest validation AUC (0.764) and demonstrates balanced performance metrics, suggesting that resampling techniques introduce noise rather than improvement for this dataset.
-# 3) Undersampling and combined strategies yield extreme recall values (82-100%) at the cost of severely degraded precision (2-3%), indicating model collapse toward majority-class prediction. This pattern renders such configurations impractical for deployment.
-# 4) LGBM baseline with optimized threshold (0.18) emerges as the recommended model, balancing discrimination capability (AUC 0.764) with operational metrics (recall 30%, precision 36%, F2 0.31).
+# The meaning of each evaluation factor is:
+# * threshold: The probability cutoff used to classify applicants as default or non-default.
+# * AUC: Measures the model’s overall ability to rank higher-risk applicants above lower-risk ones.
+# * gini: A scaled version of AUC commonly used in credit risk to quantify discriminatory power.
+# * KS: Captures the maximum separation between good and bad customers across score distributions.
+# * accuracy: The proportion of correctly classified applicants across all observations.
+# * precision: The share of predicted defaulters that are truly default cases.
+# * recall: The proportion of actual defaulters correctly identified by the model.
+# * f1: The harmonic mean of precision and recall, balancing false positives and false negatives.
+# * f2: A recall-weighted metric that places greater emphasis on identifying defaulters.
+# * tp: Number of defaulters correctly identified as high risk.
+# * fp: Number of non-defaulters incorrectly classified as defaulters.
+# * tn: Number of non-defaulters correctly classified as low risk.
+# * fn: Number of defaulters incorrectly classified as non-defaulters.
+# 
+# Results indicate that:
+# 1) Across all configurations, LGBM demonstrated significantly superior discrimination capabilities compared to GLM, achieving markedly higher validation set AUC values. This indicates that linear models struggle to effectively capture the complex credit risk structure within this dataset.
+# 2) LGBM achieved the highest validation set AUC under the baseline scenario without resampling, exhibiting relatively balanced performance across metrics. This suggests that resampling methods did not yield stable improvements on this dataset and may instead introduce noise.
+# 3) While undersampling and hybrid sampling significantly improved recall, they came at the cost of substantial accuracy decline. This resulted in excessively high misclassification costs, diminishing the model's practicality for real-world credit approval.
+# 4) Balancing discriminative capability with business metric performance, the LGBM tuned baseline model with optimized thresholds achieved an optimal equilibrium between risk identification effectiveness and operational feasibility. It is therefore recommended as the final model.
 
 # ***
 
@@ -284,7 +311,7 @@ model_evaluation_outcomes
 
 # ##### ① ROC Curve
 
-# In[18]:
+# In[21]:
 
 
 from CreditCardApproval.evaluation import plot_roc_curves_grid
@@ -297,9 +324,17 @@ plot_roc_curves_grid(
 )
 
 
+# Review:
+# 
+# The ROC curve characterizes the trade-off between true positive rate and false positive rate at different decision thresholds. Its area under the curve (AUC) reflects the model's overall ability to distinguish high-quality from low-quality customers, independent of specific threshold settings.
+# 
+# Results indicate that:
+# 1) The ROC curve for the LGBM model consistently outperforms GLM, with a significantly larger AUC, demonstrating superior discrimination capabilities across varying risk preferences.
+# 2) Consistent with prior findings, the LGBM model trained on the original sample distribution and optimized through parameter tuning exhibits optimal stability and discriminative power.
+
 # ##### ② Confusion Matrix
 
-# In[19]:
+# In[22]:
 
 
 from CreditCardApproval.evaluation import plot_confusion_matrices_grid
@@ -313,21 +348,23 @@ plot_confusion_matrices_grid(
 )
 
 
+# Review:
+# 
+# Confusion matrices provide a visual representation of a model's classification results for high-quality versus low-quality customers at a given decision threshold. They reflect the number of defaults identified, the rate of false rejections of high-quality customers, and potential risk exposure, serving as a crucial basis for evaluating a model's actual risk control effectiveness.
+# 
+# Aligning with prior findings, LGBM tuned baseline maintains strong default detection capability while effectively controlling misclassification rates among high-quality customers, demonstrating balanced risk trade-offs. In contrast, some resampling models identify more high-risk customers but generate substantial misclassifications, increasing unnecessary rejection costs and limiting their practical applicability in credit approval workflows.
+
 # ##### ③ Compare predicted and actual data
 
-# Based on previous model comparasion, a logistic regression model without resampling or hyperparameter tuning is adopted as a benchmark model due to its transparency and interpretability.
-# 
-# For the main risk assessment model, a LightGBM classifier trained on the original imbalanced dataset is selected. The model achieves the highest AUC and KS values among all candidates, indicating superior discriminatory power in ranking customer credit risk.
-# 
-# Notably, resampling techniques such as SMOTE and undersampling do not improve model performance, suggesting that preserving the original default distribution is critical for effective credit risk modeling in this dataset.
+# Based on previous model comparasion, a baseline model with hyperparameter tuning is adopted as a benchmark model for both GLM and LGBM.
 
-# In[27]:
+# In[24]:
 
 
 from CreditCardApproval.evaluation import plot_predicted_vs_actual
 
-best_glm_model = glm_models_fixed["baseline"]
-best_lgbm_model = lgbm_models_fixed["baseline"]
+best_glm_model = glm_models_tuned["baseline"]
+best_lgbm_model = lgbm_models_tuned["baseline"]
 
 final_models = {
     "Best_GLM": best_glm_model,
@@ -340,16 +377,26 @@ calib_table = plot_predicted_vs_actual(
     y_val,
     n_bins=10,
     strategy="quantile",
-    title="Calibration: Predicted vs Actual (Test)",
+    title="Calibration: Predicted vs Actual",
     save_name="2_predicted_actual_calibration"
 )
 
 calib_table
 
 
+# Review:
+# 
+# The calibration curve assesses the consistency between the model's predicted default probabilities and actual occurrence rates. The closer the curve aligns with the diagonal line, the more accurately the model's risk probabilities reflect the customer's credit quality.
+# 
+# Results indicate that:
+# 1) GLM's predicted probabilities closely match actual default rates across all bins, demonstrating overall good calibration. This highlights the stability of linear models in probability interpretation.
+# 2) LGBM significantly underestimates default probabilities in low-risk intervals while exhibiting a more concentrated probability distribution in high-risk bins, suggesting its greater emphasis on risk ranking rather than probability characterization.
+# 
+# GLM demonstrates greater robustness in probabilistic characterization and stability, while LGBM exhibits distinct advantages in credit risk ranking and discrimination capabilities. Within risk control systems, the two models play complementary roles. Hence,despite LGBM's superior discriminative capability, practical risk control applications still necessitate calibration to enhance the interpretability and operational usability of its probability outputs.
+
 # ##### ④ Feature importance
 
-# In[30]:
+# In[25]:
 
 
 from CreditCardApproval.evaluation import get_glm_feature_importance
@@ -359,7 +406,7 @@ print(f"Feature importance of GLM:\n")
 glm_imp
 
 
-# In[31]:
+# In[26]:
 
 
 from CreditCardApproval.evaluation import get_lgbm_feature_importance
@@ -371,9 +418,13 @@ lgbm_imp
 
 # Review:
 # 
+# Feature importance analysis identifies the primary information sources relied upon by the model during credit risk assessment. In this context, GLM coefficients reflect the linear direction and strength of a variable's impact on default probability, while LGBM importance measures a feature's contribution to risk differentiation during tree model splitting.
 # 
-
-# ***
+# Results indicate that: 
+# 1) GLM relies more heavily on asset and social attribute variables—such as property/vehicle ownership, employment tenure, and family/marital status—demonstrating its linear modeling capability for customer stability and long-term credit characteristics.
+# 2) LGBM emphasizes continuous variables and nonlinear relationships, with age, employment tenure, and income level playing dominant roles in risk differentiation, highlighting its advantage in capturing complex interaction effects.
+# 
+# The differing emphasis on features between the two models further validates their complementary roles in credit risk assessment—one emphasizing interpretability and the other emphasizing discrimination capability.
 
 # In[ ]:
 
