@@ -9,7 +9,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import SGDClassifier
 
 from CreditCardApproval.feature_engineering import Log1pTransformer
 
@@ -176,10 +176,14 @@ def make_glm_pipeline(
 
     preprocessor = make_preprocessor(schema)
 
-    model = LogisticRegression(
-        max_iter=1000,
+    model = SGDClassifier(
+        loss="log_loss",          # logistic regression (GLM)
+        penalty="elasticnet",     # to enable l1_ratio
+        alpha=1e-4,               # default, will be tuned
+        l1_ratio=0.15,            # default, will be tuned
+        max_iter=2000,
+        tol=1e-3,
         random_state=random_state,
-        n_jobs=None,
     )
 
     steps.extend(
@@ -218,6 +222,7 @@ def make_lgbm_pipeline(
         n_estimators=300,
         learning_rate=0.05,
         num_leaves=31,
+        min_child_weight=1.0,
         random_state=random_state,
     )
 

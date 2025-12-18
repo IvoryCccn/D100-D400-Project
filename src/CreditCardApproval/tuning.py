@@ -80,10 +80,10 @@ def tune_glm(
     
     # Hyperparameter Grid
     param_grid = {
-        "model__C": [0.01, 0.1, 1.0, 10.0],
-        "model__penalty": ["l2"],
+        "model__alpha": [1e-6, 1e-5, 1e-4, 1e-3],
+        "model__l1_ratio": [0.0, 0.2, 0.5, 0.8, 1.0],
     }
-    
+        
     # Cross-validation
     cv = StratifiedKFold(
         n_splits=cv_splits,
@@ -129,9 +129,10 @@ def tune_lgbm(
     
     # Hyperparameter Grid
     param_grid = {
-        "model__n_estimators": [200, 400],
+        "model__learning_rate": [0.01, 0.05, 0.1],
+        "model__n_estimators": [200, 400, 800],
         "model__num_leaves": [15, 31, 63],
-        "model__learning_rate": [0.03, 0.05, 0.1],
+        "model__min_child_weight": [1e-3, 1e-2, 1e-1, 1.0, 10.0],
     }
     
     # Cross-validation
